@@ -29,18 +29,54 @@ void FiniteVolume::Build_flux_mat_and_rhs(const double& t)
       int n2=_msh->Get_edges()[i].Get_T2();
       Eigen::Matrix<double,1,2> v;
       Eigen::Matrix<double,1,2> n;
+      double alpha_d=0;
+      double alpha_a=0;
+      double beta_d=0;
+      double beta_a=0;
       double alpha=0;
       double beta=0;
-      v[0]=_fct->Velocity_x(Get_triangles_center()(n1,0),Get_triangles_center()(n1,1),t);
-      v[1]=_fct->Velocity_x(Get_triangles_center()(n2,0),Get_triangles_center()(n2,1),t);
+      double distance_T1_T2=0;
+      double distance_C_T1=0;
+      v[0]=_fct->Velocity_x(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1),t);
+      v[1]=_fct->Velocity_y(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1),t);
       n[0]=_msh->Get_edges_normal()(i,0);
       n[1]=_msh->Get_edges_normal()(i,1);
-      alpha=(1/2.)*Get_edges_length()(i)*(v.dot(n));
-      beta=alpha;
-      A.coeffRef(n1,n1)=alpha/_msh->Get_triangles_area()(n1);
-      A.coeffRef(n2,n2)=-alpha/_msh->Get_triangles_area()(n2);
-      A.coeffRef(n1,n2)=beta/_msh->Get_triangles_area()(n1);
-      A.coeffRef(n2,n1)=-beta/_msh->Get_triangles_area()(n2);
+      distance_T1_T2=(_msh->Get_triangles_center().row(n1)-_msh->Get_triangles_center().row(n2)).norm();
+      alpha_d=(_df->Get_mu()*_msh->Get_edges_length()(i))/distance_T1_T2;
+      beta_d=-alpha_d;
+      if(_df->Get_numerical_flux_choice()=="Centered"){
+	alpha_a=(v.dot(n))*_msh->Get_edges_length()(i)*0.5;
+	beta_a=alpha_a;
+      }else{
+	if(v.dot(n)>0){
+	  alpha_a=(v.dot(n))*Get_edges_length()(i);
+	  beta_a=0;
+	}else{
+	  alpha_a=0;
+	  beta_a=(v.dot(n))*Get_edges_length()(i);
+	}
+      }
+      alpha=alpha_a+alpha_d;
+      beta=beta_a+beta_d;
+      if(n2==-1){
+	if(_df->Get_BC_type()=="Neumann"){
+	  _mat_flux.coeffRef(n1,n1)=(alpha+beta)/_msh->Get_triangles_area()(n1);
+	}else{
+	  _mat_flux.coeffRef(n1,n1)=(alpha-beta)/_msh->Get_triangles_area()(n1);
+	}
+      }else{
+	_mat_flux.coeffRef(n1,n1)+=alpha/_msh->Get_triangles_area()(n1);
+	_mat_flux.coeffRef(n2,n2)=-beta/_msh->Get_triangles_area()(n2);
+	_mat_flux.coeffRef(n1,n2)-=beta/_msh->Get_triangles_area()(n1);
+	_mat_flux.coeffRef(n2,n1)=-alpha/_msh->Get_triangles_area()(n2);
+      }
+      distance_C_T1=(_msh->Get_edges_center().row(i)-_msh->Get_triangles_center().row(n1)).norm()
+      if(_msh->Get_edges()[i].Get_BC()=="Neumann"){
+	_BC_RHS[n1]+=(2*beta*_fct->Neumann_Function(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1),t))/_msh->Get_triangles_area()(n1);
+      }else{
+	_BC_RHS[n1]+=2*beta*_fct->Dirichlet_Function(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1),t)/_msh->Get_triangles_area()(n1);
+      }
+      
     }
  
 }
