@@ -38,19 +38,20 @@ const VectorXd & TimeScheme::Get_sol() const
 // Euler Explicite
 void EulerScheme::Advance()
 {
-  _fin_vol->Build_flux_mat_and_rhs(t);
-  _sol+=-_dt*( _fin_vol->Get_flux_matrix()*_sol+ _fin_vol->Get_BC_RHS())+_dt*( _fin_vol->Source_term(t));
+  _fin_vol->Build_flux_mat_and_rhs(_t);
+  _sol+=-_dt*( _fin_vol->Get_flux_matrix()*_sol+ _fin_vol->Get_BC_RHS())+_dt*( _fin_vol->Source_term(_t));
   _t+=dt;
 }
 
 // Euler Implicite
 void ImplicitEulerScheme::Advance()
 {
+  _fin_vol->Build_flux_mat_and_rhs(_t);
   Eigen::SparseMatrix<double> ID;
   ID.resize(_fin_vol->Get_flux_matrix().size(),_fin_vol->Get_flux_matrix().size());
   ID.setIdentity();
   _solver_direct.compute(ID+_dt*_fin_vol->Get_flux_matrix());
-  b=_sol-_dt*(_fin_vol->Get_BC_RHS()-_fin_vol->Source_term(t+_dt))
+  b=_sol-_dt*(_fin_vol->Get_BC_RHS()-_fin_vol->Source_term(_t+_dt))
     _sol= _solver_direct.solve(b);
 }
 
