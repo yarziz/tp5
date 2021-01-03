@@ -39,8 +39,9 @@ const VectorXd & TimeScheme::Get_sol() const
 void EulerScheme::Advance()
 {
   _fin_vol->Build_flux_mat_and_rhs(_t);
-  _sol+=-_dt*( _fin_vol->Get_flux_matrix()*_sol+ _fin_vol->Get_BC_RHS())+_dt*( _fin_vol->Source_term(_t));
-  _t+=dt;
+  
+  _sol+=-(_df->Get_dt())*( _fin_vol->Get_flux_matrix()*_sol+ _fin_vol->Get_BC_RHS())+(_df->Get_dt())*( _fin_vol->Source_term(_t));
+  _t+=(_df->Get_dt());
 }
 
 // Euler Implicite
@@ -48,11 +49,12 @@ void ImplicitEulerScheme::Advance()
 {
   _fin_vol->Build_flux_mat_and_rhs(_t);
   Eigen::SparseMatrix<double> ID;
+  VectorXd b;
   ID.resize(_fin_vol->Get_flux_matrix().size(),_fin_vol->Get_flux_matrix().size());
   ID.setIdentity();
-  _solver_direct.compute(ID+_dt*_fin_vol->Get_flux_matrix());
-  b=_sol-_dt*(_fin_vol->Get_BC_RHS()-_fin_vol->Source_term(_t+_dt))
-    _sol= _solver_direct.solve(b);
+  _solver_direct.compute(ID+(_df->Get_dt())*_fin_vol->Get_flux_matrix());
+  b=_sol-(_df->Get_dt())*(_fin_vol->Get_BC_RHS()-_fin_vol->Source_term(_t+(_df->Get_dt())));
+  _sol= _solver_direct.solve(b);
 }
 
 #define _TIME_SCHEME_CPP
