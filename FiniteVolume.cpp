@@ -12,8 +12,10 @@ FiniteVolume::FiniteVolume(Function* function, DataFile* data_file, Mesh2D* mesh
 {
   std::cout << "Build finite volume class." << std::endl;
   std::cout << "-------------------------------------------------" << std::endl;
+	
+
 }
-                                                                                                                                       
+
 // Construit la matrice des flux
 void FiniteVolume::Build_flux_mat_and_rhs(const double& t)
 {
@@ -22,63 +24,98 @@ void FiniteVolume::Build_flux_mat_and_rhs(const double& t)
   // RHS
   _BC_RHS.resize(_msh->Get_triangles().size());
   _BC_RHS.setZero();
-  
+  typedef Eigen::Triplet<double> T;
+  std::vector<T> triplets;
+  triplets.clear();
+	
+
   for (int i = 0; i < _msh->Get_edges().size(); i++)
     {
-      int n1=_msh->Get_edges()[i].Get_T1();
-      int n2=_msh->Get_edges()[i].Get_T2();
-      Eigen::Matrix<double,1,2> v;
-      Eigen::Matrix<double,1,2> n;
-      double alpha_d=0;
-      double alpha_a=0;
-      double beta_d=0;
-      double beta_a=0;
-      double alpha=0;
-      double beta=0;
-      double distance_T1_T2=0;
-      double distance_C_T1=0;
-      v[0]=_fct->Velocity_x(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1),t);
-      v[1]=_fct->Velocity_y(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1),t);
-      n[0]=_msh->Get_edges_normal()(i,0);
-      n[1]=_msh->Get_edges_normal()(i,1);
-      distance_T1_T2=(_msh->Get_triangles_center().row(n1)-_msh->Get_triangles_center().row(n2)).norm();
-      alpha_d=(_df->Get_mu()*_msh->Get_edges_length()(i))/distance_T1_T2;
-      beta_d=-alpha_d;
-      if(_df->Get_numerical_flux_choice()=="Centered"){
-	alpha_a=(v.dot(n))*_msh->Get_edges_length()(i)*0.5;
-	beta_a=alpha_a;
+      // TODO
+      double vi=_fct->Velocity_x(_msh-> Get_edges_center()(i,0),_msh-> Get_edges_center()(i,1),t)*_msh->Get_edges_normal()(i,0)+_fct->Velocity_y(_msh-> Get_edges_center()(i,0),_msh-> Get_edges_center()(i,1),t)*_msh->Get_edges_normal()(i,1);
+      int k1=_msh->Get_edges()[i].Get_T1();
+      int k2=_msh->Get_edges()[i].Get_T2();
+	
+      double alpha;
+      double beta;
+      double alpha_A;
+      double beta_A;
+      double alpha_D;
+      double beta_D;
+      //upwind
+
+
+       if(_df->Get_numerical_flux_choice()=="Centered"){
+	alpha_A=vi*0.5;
+	beta_A=alpha_A;
       }else{
-	if(v.dot(n)>0){
-	  alpha_a=(v.dot(n))*_msh->Get_edges_length()(i);
-	  beta_a=0;
-	}else{
-	  alpha_a=0;
-	  beta_a=(v.dot(n))*_msh->Get_edges_length()(i);
+	 if (vi>=0)
+	{
+	  alpha_A=vi;
+	  beta_A=0.;
+
 	}
+      else
+	{
+	  alpha_A=0.;
+	  beta_A=vi;
+	}	
+	
       }
-      alpha=alpha_a+alpha_d;
-      beta=beta_a+beta_d;
-      if(n2==-1){
-	if(_msh->Get_edges()[i].Get_BC()=="Neumann"){
-	  _mat_flux.coeffRef(n1,n1)=(alpha+beta)/_msh->Get_triangles_area()(n1);
-	}else{
-	  _mat_flux.coeffRef(n1,n1)=(alpha-beta)/_msh->Get_triangles_area()(n1);
+
+
+
+
+
+     	
+
+	
+      if (k2==-1)
+	{
+	  double delta_k1_e=sqrt((_msh->Get_triangles_center()(k1,0)-_msh->Get_edges_center()(i,0))*(_msh->Get_triangles_center()(k1,0)-_msh->Get_edges_center()(i,0))+(_msh->Get_triangles_center()(k1,1)-_msh->Get_edges_center()(i,1))*(_msh->Get_triangles_center()(k1,1)-_msh->Get_edges_center()(i,1)));		    
+	  alpha_D=_df->Get_mu()/(delta_k1_e);
+	  beta_D=-_df->Get_mu()/(delta_k1_e);
+	  alpha=alpha_D+alpha_A;
+	  beta=beta_D+beta_A;
+	  if (_msh->Get_edges()[i].Get_BC()=="Neumann")
+	    {
+	      double g=_fct->Neumann_Function(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1), t);
+	      _BC_RHS(k1)=-(_msh-> Get_edges_length()(i)*_df->Get_mu()*g)/_msh-> Get_triangles_area()(k1);//diffusion
+	      _BC_RHS(k1)+=beta_A*2*delta_k1_e*g*(_msh-> Get_edges_length()(i))/_msh-> Get_triangles_area()(k1);//+advection
+	      triplets.push_back(T(k1,k1,_msh-> Get_edges_length()(i)*(alpha_A+beta_A) /_msh-> Get_triangles_area()(k1)));//advection
+	    }
+	  if (_msh->Get_edges()[i].Get_BC()=="Dirichlet")
+	    {
+	      double h=_fct->Dirichlet_Function(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1), t);;
+	      _BC_RHS(k1)=(_msh-> Get_edges_length()(i)*beta_D*h)/_msh-> Get_triangles_area()(k1);//diffusion
+	      _BC_RHS(k1)+=beta_A*2.*h*_msh-> Get_edges_length()(i)/_msh-> Get_triangles_area()(k1);//+advection
+	      triplets.push_back(T(k1,k1,_msh-> Get_edges_length()(i)*(alpha_A-beta_A+alpha_D) /_msh-> Get_triangles_area()(k1)));//diffusion+diffusion
+				
+	    }
+		
 	}
-      }else{
-	_mat_flux.coeffRef(n1,n1)+=alpha/_msh->Get_triangles_area()(n1);
-	_mat_flux.coeffRef(n2,n2)=-beta/_msh->Get_triangles_area()(n2);
-	_mat_flux.coeffRef(n1,n2)-=beta/_msh->Get_triangles_area()(n1);
-	_mat_flux.coeffRef(n2,n1)=-alpha/_msh->Get_triangles_area()(n2);
-      }
-      distance_C_T1=(_msh->Get_edges_center().row(i)-_msh->Get_triangles_center().row(n1)).norm();
-      if(_msh->Get_edges()[i].Get_BC()=="Neumann"){
-	_BC_RHS[n1]+=(2*beta*_fct->Neumann_Function(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1),t))/_msh->Get_triangles_area()(n1);
-      }else{
-	_BC_RHS[n1]+=2*beta*_fct->Dirichlet_Function(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1),t)/_msh->Get_triangles_area()(n1);
-      }
-      
+      else
+	{
+			
+	  //shema centré
+	  double delta_k1_k2=sqrt((_msh->Get_triangles_center()(k1,0)-_msh->Get_triangles_center()(k2,0))*(_msh->Get_triangles_center()(k1,0)-_msh->Get_triangles_center()(k2,0))+(_msh->Get_triangles_center()(k1,1)-_msh->Get_triangles_center()(k2,1))*(_msh->Get_triangles_center()(k1,1)-_msh->Get_triangles_center()(k2,1)));
+	  alpha_D=_df->Get_mu()/delta_k1_k2;
+	  beta_D=-_df->Get_mu()/delta_k1_k2;
+	  alpha=alpha_D+alpha_A;
+	  beta=beta_D+beta_A;
+	  triplets.push_back(T(k1,k1,_msh->Get_edges_length()(i)*alpha /_msh-> Get_triangles_area()(k1)));
+	  triplets.push_back(T(k1,k2,_msh-> Get_edges_length()(i)*beta/_msh-> Get_triangles_area()(k1)));
+	  triplets.push_back(T(k2,k1,-_msh-> Get_edges_length()(i)*alpha/_msh-> Get_triangles_area()(k2)));
+	  triplets.push_back(T(k2,k2,-_msh-> Get_edges_length()(i)*beta /_msh-> Get_triangles_area()(k2)));
+	}
     }
-  cout<< _mat_flux<<endl;
+  _mat_flux.setFromTriplets(triplets.begin(), triplets.end());
+  //std::cout<<_mat_flux<<std::endl;
+  //std::cout<<"-------------------------"<<std::endl;
+  //std::cout<<_BC_RHS<<std::endl;
+
+
+
 }
 
 
