@@ -27,7 +27,8 @@ void FiniteVolume::Build_flux_mat_and_rhs(const double& t)
   typedef Eigen::Triplet<double> T;
   std::vector<T> triplets;
   triplets.clear();
-	
+  double g=0.;
+  double h=0.;
 
   for (int i = 0; i < _msh->Get_edges().size(); i++)
     {
@@ -36,12 +37,13 @@ void FiniteVolume::Build_flux_mat_and_rhs(const double& t)
       int k1=_msh->Get_edges()[i].Get_T1();
       int k2=_msh->Get_edges()[i].Get_T2();
 	
-      double alpha;
-      double beta;
-      double alpha_A;
-      double beta_A;
-      double alpha_D;
-      double beta_D;
+      double alpha=0;
+      double beta=0;
+      double alpha_A=0;
+      double beta_A=0;
+      double alpha_D=0;
+      double beta_D=0;
+     
       //upwind
 
 
@@ -79,15 +81,20 @@ void FiniteVolume::Build_flux_mat_and_rhs(const double& t)
 	  beta=beta_D+beta_A;
 	  if (_msh->Get_edges()[i].Get_BC()=="Neumann")
 	    {
-	      double g=_fct->Neumann_Function(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1), t);
-	      _BC_RHS(k1)=-(_msh-> Get_edges_length()(i)*_df->Get_mu()*g)/_msh-> Get_triangles_area()(k1);//diffusion
+	      g=_fct->Neumann_Function(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1),t);
+	      _BC_RHS(k1)-=(_msh-> Get_edges_length()(i)*_df->Get_mu()*g)/_msh-> Get_triangles_area()(k1);//diffusion
+	      cout<<_msh-> Get_edges_length()(i)*_df->Get_mu()*g)/_msh-> Get_triangles_area()(k1)<<endl;
+	      //cout<<g<<endl;
+	      //cout<<_msh->Get_edges_center()(i,0)-_msh->Get_edges_center()(i,1)<<endl;
+	      //cout<<_msh-> Get_triangles_area()(k1)<<endl;
+	      cout<<"-----------------------------------------------"<<endl;
 	      _BC_RHS(k1)+=beta_A*2*delta_k1_e*g*(_msh-> Get_edges_length()(i))/_msh-> Get_triangles_area()(k1);//+advection
 	      triplets.push_back(T(k1,k1,_msh-> Get_edges_length()(i)*(alpha_A+beta_A) /_msh-> Get_triangles_area()(k1)));//advection
 	    }
 	  if (_msh->Get_edges()[i].Get_BC()=="Dirichlet")
 	    {
-	      double h=_fct->Dirichlet_Function(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1), t);;
-	      _BC_RHS(k1)=(_msh-> Get_edges_length()(i)*beta_D*h)/_msh-> Get_triangles_area()(k1);//diffusion
+	       h=_fct->Dirichlet_Function(_msh->Get_edges_center()(i,0),_msh->Get_edges_center()(i,1), t);;
+	      _BC_RHS(k1)+=(_msh-> Get_edges_length()(i)*beta_D*h)/_msh-> Get_triangles_area()(k1);//diffusion
 	      _BC_RHS(k1)+=beta_A*2.*h*_msh-> Get_edges_length()(i)/_msh-> Get_triangles_area()(k1);//+advection
 	      triplets.push_back(T(k1,k1,_msh-> Get_edges_length()(i)*(alpha_A-beta_A+alpha_D) /_msh-> Get_triangles_area()(k1)));//diffusion+diffusion
 				
@@ -110,9 +117,9 @@ void FiniteVolume::Build_flux_mat_and_rhs(const double& t)
 	}
     }
   _mat_flux.setFromTriplets(triplets.begin(), triplets.end());
-  //std::cout<<_mat_flux<<std::endl;
-  //std::cout<<"-------------------------"<<std::endl;
-  //std::cout<<_BC_RHS<<std::endl;
+  std::cout<<_mat_flux<<std::endl;
+  std::cout<<"-------------------------"<<std::endl;
+  std::cout<<_BC_RHS<<std::endl;
 
 
 

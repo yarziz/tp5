@@ -16,7 +16,8 @@ double Function::Initial_condition(const double x, const double y) const
   if (_df->Get_scenario() == "none")
   {
     // TODO for real case
-    return 0;
+    //température 15c
+    return 15;
   }
   else if (_df->Get_scenario() == "advection_hom_neumann")
   {
@@ -91,7 +92,14 @@ double Function::Neumann_Function(const double x, const double y, const double t
   if (_df->Get_scenario() == "none")
   {
     // TODO for real case
-    return 0;
+    //g=P/3*S*lambda
+    double lambda=0,607;
+    double H=0.2;
+    double R=0.1;
+    double Pkettle=2200;
+    double P=Pkettle/H;
+    double S=2*pi*R;
+    return P/(3.*S*lambda);
   }
   else if (_df->Get_scenario() == "diffusion_hom_neumann")
   {
@@ -129,7 +137,7 @@ double Function::Dirichlet_Function(const double x, const double y, const double
   if (_df->Get_scenario() == "none")
   {
     // TODO for real case
-    return 0;
+    return 20;
   }
   else
   {

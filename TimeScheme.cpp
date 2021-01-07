@@ -44,7 +44,6 @@ void EulerScheme::Advance()
   double dt=_df->Get_dt();
   VectorXd b=_fin_vol->Get_BC_RHS();
   //VectorXd phi=_fin_vol->Initial_condition();
-
   _sol=_sol-dt*(A*_sol+b)+dt*S;
   //_t=_t+dt;
 }
